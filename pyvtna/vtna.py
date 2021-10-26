@@ -1,8 +1,8 @@
 import numpy as np
 from sklearn.linear_model import LinearRegression
-from vtna.signal import *
 from scipy.optimize import Bounds, minimize
-from vtna.align import *
+from pyvtna.signal import *
+from pyvtna.align import *
 
 class VTNA():
 

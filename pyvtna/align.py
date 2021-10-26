@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from vtna.signal import *
 from scipy.interpolate import interp1d
-from vtna.metrics import *
+from pyvtna.signal import *
+from pyvtna.metrics import *
 
 def align_starts(sig1, sig2, time1=None, time2=None):
     """
