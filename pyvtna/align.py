@@ -1,6 +1,4 @@
-import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import interp1d
 from pyvtna.signal import *
 from pyvtna.metrics import *
 
