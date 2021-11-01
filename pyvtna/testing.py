@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def simulate_reaction_trace(time, reac_st, reac_orders, reac_coefs, prod_st, prod_coefs, k=1, noise=0.0):
     dts = time[1:] - time[:-1]
     reacs = [[reac_st[i]] for i in range(len(reac_st))]

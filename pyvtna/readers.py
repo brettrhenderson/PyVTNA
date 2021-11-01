@@ -1,13 +1,13 @@
 """pre plotting data manipulation"""
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import logging
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.WARNING)
 
-class VTNAReader():
+
+class VTNAReader:
     
     def __init__(self):
         self.reaction_traces = []
@@ -20,16 +20,15 @@ class VTNAReader():
         self.norm_method = 'TC'
         self.normalized = False
         
-    def load():
+    def load(self, filename):
         pass
     
-    def get_TC(self):
+    def get_tc(self):
         """
         produce a column summing all counts at each timestep to be used for Total ion Count normalization
 
         Parameters
         ----------
-        data
 
         Returns
         -------
@@ -42,7 +41,7 @@ class VTNAReader():
                 self.species_totals.append(df.iloc[:, 1:].sum(axis=1))
             return self.species_totals
         
-    def get_MV(self):
+    def get_mv(self):
         """
         produce a column of the max species values at each timestep to be used for Max Value normalization
 
@@ -53,7 +52,7 @@ class VTNAReader():
         -------
 
         """
-        if len(self.species_maxess):
+        if len(self.species_maxes):
             return self.species_maxes
         else:
             for df in self.reaction_traces:
@@ -85,33 +84,30 @@ class VTNAReader():
         if normalization_method is None:
             normalization_method = self.norm_method 
         if normalization_method == "TC" or normalization_method == "Total Count":
-            self.species_norms = get_TC()
+            self.species_norms = self.get_tc()
         elif normalization_method == "MV" or normalization_method == "Max Value":
-            self.species_norms = get_MV()
+            self.species_norms = self.get_mv()
         else:
-            self.species_norms =  = [1]*len(data)
+            self.species_norms = [1]*len(self.reaction_traces)
         return self.species_norms
-            
 
     def normalize_columns(self):
         """
         normalize all columns by the sum on that time step (excludes the time column in a sheet)
         Parameters
         ----------
-        data
-        totals
 
         Returns
         -------
 
         """
-        Rnorm = []
+        rnorm = []
         for i, df in enumerate(self.reaction_traces):
-            Rnorm.append(pd.concat([df.iloc[:,0], df.iloc[:, 1:].div(self.get_species_norms()[i], axis=0)], axis=1))
+            rnorm.append(pd.concat([df.iloc[:, 0], df.iloc[:, 1:].div(self.get_species_norms()[i], axis=0)], axis=1))
         self.original_reaction_traces = self.reaction_traces
-        self.reaction_traces = Rnorm
+        self.reaction_traces = rnorm
         self.normalized = True
-        return Rnorm
+        return rnorm
     
     def reset_reaction_traces(self):
         self.reaction_traces = self.original_reaction_traces
@@ -126,7 +122,6 @@ class VTNAReader():
 
         Parameters
         ----------
-        data
         shifts
 
         Returns
@@ -145,7 +140,6 @@ class VTNAReader():
 
         Parameters
         ----------
-        data : list of pandas.DataFrame
 
         Returns
         -------
@@ -157,7 +151,7 @@ class VTNAReader():
             maxtime.append(df.iloc[:, 0].max())
         return maxtime
 
-    ## update concs to be read from sheet (column 1) and have user update names of species in the website if they desire
+    # update concs to be read from sheet (column 1) and have user update names of species in the website if they desire
     def multiply_concs(self, concs):
         concs = np.array(concs)
         for i, df in enumerate(self.reaction_traces):
@@ -167,15 +161,14 @@ class VTNAReader():
 
     def select_data(self, reactions=None, species=None):
         """selects data to plot"""
-        if reactions is None:   #return all reactions
-            if species is None:     #return all species
-                return data
-            return [self.reaction_traces[rxn].iloc[:, [0]+[spec+1 for spec in species]] for rxn in range(len(self.reaction_traces))]
+        if reactions is None:   # return all reactions
+            if species is None:     # return all species
+                return self.reaction_traces
+            return [self.reaction_traces[rxn].iloc[:, [0]+[spec+1 for spec in species]]
+                    for rxn in range(len(self.reaction_traces))]
         elif species is None:
             return [self.reaction_traces[rxn] for rxn in reactions]
         return [self.reaction_traces[rxn].iloc[:, [0]+[spec+1 for spec in species]] for rxn in reactions]
-
-    
 
 
 class ExcelReader(VTNAReader):

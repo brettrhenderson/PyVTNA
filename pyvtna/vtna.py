@@ -1,8 +1,8 @@
 from sklearn.linear_model import LinearRegression
 from scipy.optimize import Bounds, minimize
+from scipy.interpolate import interp1d
 from pyvtna.align import *
 import pyvtna.metrics as metrics
-from pyvtna.signal import is_ascending
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 class VTNA():
@@ -76,6 +76,14 @@ class VTNA():
 
 def normalize_time(time, conc, order):
     dt = (time[1:] - time[:-1]).reshape(-1, 1)
+
+    # check if concentrations are single values, indicating catalyst or excess reagent
+    if isinstance(conc, float):
+        conc = conc * np.ones((len(time), 1))
+    elif len(conc) == 1:
+        conc = np.array(conc)
+        conc = conc * np.ones((len(time), conc.shape[1]))
+
     ave_conc = (conc[1:] + conc[:-1]) / 2
     # check if conc, order are iterables
     # if so, the integrand should have the product of the conc^order for each reagent
@@ -176,10 +184,6 @@ def order_search(t1, t2, prod1, prod2, reac1, reac2, o_range=(0,3), o_step=0.01,
     metric_class = getattr(metrics, metric)
     metric = metric_class(max_is_best=True)
 
-    # configure so that the largest overlap is always the highest value
-    if not is_ascending(prod1):
-        metric = lambda x, y: -metric(x, y)
-    
     if win1 is None:
         win1 = get_best_win(prod1, mode=smooth_mode, minwin=1, maxwin=int(min(200, len(prod1) / 5)))
     if win2 is None:
@@ -222,7 +226,7 @@ def order_search(t1, t2, prod1, prod2, reac1, reac2, o_range=(0,3), o_step=0.01,
             prod1_int = f(t2_over)
             prod2_int = prod2[(t2_norm >= min_t) & (t2_norm <= max_t)]
 
-        # g. compute Pearson r coefficient 
+        # g. compute Pearson r coefficient
         overlap = metric(prod1_int, prod2_int)
         overlaps.append(overlap)
 
@@ -344,10 +348,6 @@ def order_opt(t1, t2, prod1, prod2, reac1, reac2, o_range=None, method='Nelder-M
     metric_class = getattr(metrics, metric)
     metric = metric_class(max_is_best=True)
 
-    # configure so that the largest overlap is always the highest value
-    if not is_ascending(prod1):
-        metric = lambda x, y: -metric(x, y)
-
     if win1 is None:
         win1 = get_best_win(prod1, mode=smooth_mode, minwin=1, maxwin=int(min(200, len(prod1) / 5)))
     if win2 is None:
@@ -358,8 +358,9 @@ def order_opt(t1, t2, prod1, prod2, reac1, reac2, o_range=None, method='Nelder-M
     if to_smooth:
         prod1 = smooth(prod1, window_len=win1, window=window_type)
         prod2 = smooth(prod2, window_len=win2, window=window_type)
-        reac1 = smooth(reac1, window_len=win1, window=window_type)
-        reac2 = smooth(reac2, window_len=win2, window=window_type)
+        if (hasattr(reac1, '__iter__') and hasattr(reac2, '__iter__')):
+            reac1 = smooth(reac1, window_len=win1, window=window_type)
+            reac2 = smooth(reac2, window_len=win2, window=window_type)
 
     os = []
     overlaps = []
