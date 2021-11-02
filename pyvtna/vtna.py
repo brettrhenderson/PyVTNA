@@ -74,6 +74,7 @@ class VTNA():
             self.k = line.coef_[0][0]
         return self.k
 
+
 def normalize_time(time, conc, order):
     dt = (time[1:] - time[:-1]).reshape(-1, 1)
 
@@ -96,8 +97,10 @@ def normalize_time(time, conc, order):
     return np.concatenate((np.array([0]), np.cumsum(integrand, dtype=float)))
 
 
-def order_search(t1, t2, prod1, prod2, reac1, reac2, o_range=(0,3), o_step=0.01,  metric='RMSD', to_smooth=False, window_type='blackman',
-                   win1=None, win2=None, smooth_mode='derivative', plot=False, **kwargs):
+def order_search(t1, t2, prod1, prod2, reac1, reac2, o_range=(0, 3), nsteps=0.01, metric='RMSD', smooth_traces=False,
+                 win1=None, win2=None, smooth_mode='derivative', smooth_cost_function=False, win_cost=None,
+                 interp_cost_fun=False, window_type='blackman', plot=False, **kwargs):
+
     """
     Returns the optimal order for a reactant in a rate law using the VTNA procedure.
     
@@ -131,17 +134,14 @@ def order_search(t1, t2, prod1, prod2, reac1, reac2, o_range=(0,3), o_step=0.01,
         The reactant signal from reaction 2, of the same form as `prod1`.
     o_range : tuple, optional
         The range of order values to search, as (min, max). Default (0, 3).
-    o_step : float, optional
-        The step size for order grid search. Default 0.01.
+    nsteps : float, optional
+        The number of steps in `o_range` for order grid search. Default 100.
     metric : str, optional
         Metric for calculating overlap of two signals.
         {'RMSD', 'R2', 'PearR', 'MAD'}. Default='RMSD'.
-    to_smooth : bool, optional
+    smooth_traces : bool, optional
         If True, both signals will be smoothed before performing
         the grid search.
-    window_type : str, optional
-        Window type to be used for weighted window rolling mean smoothing
-        {'flat', 'hanning', 'hamming', 'bartlett', 'blackman'}. Default='blackman'.
     win1 : int, optional
         The window size to be used for a rolling mean smoothing of 
         sig1.  If None, the algorithm will guess an optimal
@@ -160,6 +160,20 @@ def order_search(t1, t2, prod1, prod2, reac1, reac2, o_range=(0,3), o_step=0.01,
         mean to the signal standard deviation.  In 'range' mode, SNR
         is calculated as the ratio of the signal range to signal 
         standard deviation.
+    smooth_cost_function : bool, Optional
+        If True, the cost function estimated by the grid search will
+        be smoothed before determining the optimal poisoning. Useful
+        for noisy data, which causes a noisy cost function. Default: False
+    win_cost : int, optional
+        The size of the window used for smoothing the cost function. Must
+        be smaller than the number of points in the grid_search. Default:
+        half of the number of grid points.
+    interp_cost_fun : bool, optional
+        Whether to interpolate the cost function on a finer grid after smoothing.
+        Can potentially allow a better answer with fewer grid points in the original search.
+    window_type : str, optional
+        Window type to be used for weighted window rolling mean smoothing
+        {'flat', 'hanning', 'hamming', 'bartlett', 'blackman'}. Default='blackman'.
     plot : bool, optional
         If True, the final signal alignment will be plotted, with
         the signals both smoothed using an optimal smoothing
@@ -177,6 +191,8 @@ def order_search(t1, t2, prod1, prod2, reac1, reac2, o_range=(0,3), o_step=0.01,
     rs : list
         A record of all the Pearson correlation coefficients for each 
         of the orders tried, which are np.arange(o_range[0], o_range[1], o_step)
+    f : `scipy.interpolate.interpolate.interp1d`
+        The interpolated cost function. None if either `smooth_cost_function` or `interp_cost_fun` are False
         
     """
     if metric not in ['PearR', 'R2', 'RMSD', 'MAD']:
@@ -191,20 +207,15 @@ def order_search(t1, t2, prod1, prod2, reac1, reac2, o_range=(0,3), o_step=0.01,
 
     prod1_orig = prod1
     prod2_orig = prod2
-    if to_smooth:
+    if smooth_traces:
         prod1 = smooth(prod1, window_len=win1, window=window_type)
         prod2 = smooth(prod2, window_len=win2, window=window_type)
         reac1 = smooth(reac1, window_len=win1, window=window_type)
         reac2 = smooth(reac2, window_len=win2, window=window_type)
-      
-    best_order = 0
-    best_overlap = -1000
-    best_t1 = t1
-    best_t2 = t2
-    overlaps = []
 
-    os = np.arange(o_range[0], o_range[1], o_step)
-    for o in os:
+    orders = np.linspace(o_range[0], o_range[1], nsteps)
+    overlaps = np.zeros(orders.shape)
+    for i, o in enumerate(orders):
         # a. normalize the time axis of both signals
         t1_norm = normalize_time(t1, reac1, o)
         t2_norm = normalize_time(t2, reac2, o)
@@ -228,34 +239,49 @@ def order_search(t1, t2, prod1, prod2, reac1, reac2, o_range=(0,3), o_step=0.01,
 
         # g. compute Pearson r coefficient
         overlap = metric(prod1_int, prod2_int)
-        overlaps.append(overlap)
+        overlaps[i] = overlap
 
-        # h. check if r is the new best
-        if overlap > best_overlap:
-            best_overlap = overlap
-            best_order = o
-            best_t1 = t1_norm
-            best_t2 = t2_norm
-    
+    original_overlaps = overlaps
+    orders_cf = orders
+    best_overlap, best_order = None, None
+    f = None
+    if smooth_cost_function:
+        if win_cost is None:
+            win_cost = len(overlaps) // 2
+        overlaps = smooth(overlaps, window_len=win_cost, window=window_type, general_sig=True)
+        if interp_cost_fun:
+            f = interp1d(orders, -overlaps, kind='quadratic')
+            orders_cf = np.linspace(o_range[0], o_range[1], nsteps * 10)
+            overlaps = -f(orders_cf)
+            res = minimize(f, np.mean(o_range), bounds=[o_range], method='Nelder-Mead')
+            best_overlap, best_order = -res.fun, res.x[0]
+    if best_overlap is None:
+        best_overlap = overlaps.max()
+        best_order = orders[overlaps.argmax()]
+    t1_norm = normalize_time(t1, reac1, best_order)
+    t2_norm = normalize_time(t2, reac2, best_order)
+
     if plot:
         fig, (a1, a2, a3) = plt.subplots(1, 3, **kwargs)
         a1.scatter(t1, prod1_orig, label="Rxn 1")
         a1.scatter(t2, prod2_orig, label='Rxn 2')
         a1.legend()
         a1.set_title('Original Product Traces for 2 Reactions')
-        a2.plot(os, overlaps, c='tab:blue', linewidth=2, label="Overlap Scan")
+        a2.plot(orders_cf, overlaps, c='tab:blue', linewidth=2, label="Cost Function")
+        if smooth_cost_function:
+            a2.plot(orders, original_overlaps, c='tab:orange', linewidth=2, label="Un-Smoothed Cost Function")
         a2.scatter([best_order], best_overlap, c="tab:red", s=100, label='Best Overlap')
         a2.legend()
         a2.set_title('Overlap Metric For Scanned Orders')
-        a3.scatter(best_t1, prod1_orig, label='Rxn 1')
-        a3.scatter(best_t2, prod2_orig, label='Rxn 2')
+        a3.scatter(t1_norm, prod1_orig, label='Rxn 1')
+        a3.scatter(t2_norm, prod2_orig, label='Rxn 2')
         a3.legend()
         a3.set_title('Best-Fit Time-Normalization for Product Traces')
         print(f"Best fit achieved for an order of {best_order:0.2f}.")
         plt.tight_layout()
         plt.show()
     
-    return best_order, overlaps
+    return best_order, overlaps, f
 
 
 def order_opt(t1, t2, prod1, prod2, reac1, reac2, o_range=None, method='Nelder-Mead', metric='RMSD', to_smooth=False,

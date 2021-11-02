@@ -100,6 +100,8 @@ def poison_search(t1, t2, prod1, prod2, reac1, reac2, order, poison_range=None, 
     rs : list
         A record of all the Pearson correlation coefficients for each
         of the orders tried, which are np.arange(o_range[0], o_range[1], o_step)
+    f : `scipy.interpolate.interpolate.interp1d`
+        The interpolated cost function. None if either `smooth_cost_function` or `interp_cost_fun` are False
 
     """
     if metric not in ['PearR', 'R2', 'RMSD', 'MAD']:
