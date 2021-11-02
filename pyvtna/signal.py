@@ -119,7 +119,7 @@ def rolling_mean(arr, win=3):
     roll[win:] = roll[win:] - roll[:-win]
     return roll[win - 1:] / win
 
-def smooth(x,window_len=11,window='hanning'):
+def smooth(x,window_len=11,window='hanning', general_sig=False):
     """smooth the data using a window with requested size. 
     (https://scipy-cookbook.readthedocs.io/items/SignalSmooth.html)
     
@@ -133,6 +133,9 @@ def smooth(x,window_len=11,window='hanning'):
         window_len: the dimension of the smoothing window; should be an odd integer
         window: the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'
             flat window will produce a moving average smoothing.
+        general_sig: bool, optional
+            If True, do not assume the signal is monotonically increasing or decreasing.
+            Extend the signal with a simple reflection about initial and final points.
 
     output:
         the smoothed signal
@@ -168,19 +171,19 @@ def smooth(x,window_len=11,window='hanning'):
     if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
         raise ValueError("Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'")
 
-
-    #s=np.r_[x[window_len-1:0:-1],x,x[-2:-window_len-1:-1]]
-    if is_ascending(x):
-        s = np.r_[x[0]-x[window_len-1:0:-1], x, x[-1] - (x[-1] - x[-2:-window_len-1:-1])]
+    if general_sig:
+        s = np.r_[2 * x[0] - x[window_len - 1:0:-1], x, 2 * x[-1] - x[-2:-window_len - 1:-1]]
     else:
-        s = np.r_[x[0] + x[0] - x[window_len-1:0:-1], x, x[-1] + (x[-1] - x[-2:-window_len-1:-1])]
-    #print(len(s))
-    if window == 'flat': #moving average
-        w=np.ones(window_len,'d')
+        if is_ascending(x):
+            s = np.r_[x[0]-x[window_len-1:0:-1], x, x[-1] - (x[-1] - x[-2:-window_len-1:-1])]
+        else:
+            s = np.r_[x[0] + x[0] - x[window_len-1:0:-1], x, x[-1] + (x[-1] - x[-2:-window_len-1:-1])]
+    if window == 'flat':  # moving average
+        w = np.ones(window_len,'d')
     else:
-        w=eval('np.'+window+'(window_len)')
+        w = eval('np.'+window+'(window_len)')
 
-    y=np.convolve(w/w.sum(),s,mode='valid')
+    y=np.convolve(w/w.sum(), s, mode='valid')
     return y[int((window_len/2-1)):-int((window_len/2))]
 
 def dv_dx(vs, xs=None):
