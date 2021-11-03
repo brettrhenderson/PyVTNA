@@ -10,15 +10,37 @@ log.setLevel(logging.WARNING)
 class VTNAReader:
     
     def __init__(self):
-        self.reaction_traces = []
-        self.original_reaction_traces = []
+        self.reaction_traces = {}
+        self.original_reaction_traces = {}
         self.reaction_names = []
         self.reactant_names = []
-        self.species_totals = []
-        self.species_maxes = []
-        self.species_norms = []
+        self.species_totals = {}
+        self.species_maxes = {}
+        self.species_norms = {}
         self.norm_method = 'TC'
         self.normalized = False
+
+    @staticmethod
+    def get_reaction_names(data):
+        return list(data.keys())
+
+    @staticmethod
+    def get_reactant_names(data):
+        reactants = None
+        match = True
+        # import excel sheets of reaction 1 and 2
+        for rxn in VTNAReader.get_reaction_names():
+            if reactants is None:
+                reactants = list(data[rxn].keys())
+            else:
+                new_reactants = list(data[rxn].keys())
+                if new_reactants != reactants:
+                    match = False
+                    if len(new_reactants) != len(reactants):
+                        raise ValueError("Each reaction must have same number of monitored species.")
+        if not match:
+            reactants = [str(i) for i in range(1, len(data[rxn].keys()) + 1)]
+        return reactants
         
     def load(self, filename):
         pass
@@ -37,8 +59,8 @@ class VTNAReader:
         if len(self.species_totals):
             return self.species_totals
         else:
-            for df in self.reaction_traces:
-                self.species_totals.append(df.iloc[:, 1:].sum(axis=1))
+            for rxn, data in self.reaction_traces.items():
+                self.species_totals[rxn] = (df.iloc[:, 1:].sum(axis=1))
             return self.species_totals
         
     def get_mv(self):
@@ -169,6 +191,18 @@ class VTNAReader:
         elif species is None:
             return [self.reaction_traces[rxn] for rxn in reactions]
         return [self.reaction_traces[rxn].iloc[:, [0]+[spec+1 for spec in species]] for rxn in reactions]
+
+class ManualInput(VTNAReader):
+    def __init__(self, data_dict=None):
+        super().__init__()
+        if data_dict is not None:
+            self.load(data_dict)
+
+    def load(self, data):
+        self.reaction_traces = data
+        self.original_reaction_traces = data
+        self.reaction_names = self.get_reaction_names(data)
+        self.reactant_names = self.get_reactant_names(data)
 
 
 class ExcelReader(VTNAReader):

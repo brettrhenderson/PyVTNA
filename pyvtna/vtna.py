@@ -5,6 +5,42 @@ from pyvtna.align import *
 import pyvtna.metrics as metrics
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+
+class VTNA:
+
+    def __init__(self, reader, data_loc=None, writer=None, visualizer=None):
+        self.data = reader(data_loc)
+        self.writer = writer
+        self.visualizer = visualizer
+
+    def load(self, data_loc):
+        self.data.load(data_loc)
+
+    def
+
+    @staticmethod
+    def normalize_time(time, conc, order):
+        dt = (time[1:] - time[:-1]).reshape(-1, 1)
+
+        # check if concentrations are single values, indicating catalyst or excess reagent
+        if isinstance(conc, float):
+            conc = conc * np.ones((len(time), 1))
+        elif len(conc) == 1:
+            conc = np.array(conc)
+            conc = conc * np.ones((len(time), conc.shape[1]))
+
+        ave_conc = (conc[1:] + conc[:-1]) / 2
+        # check if conc, order are iterables
+        # if so, the integrand should have the product of the conc^order for each reagent
+        if type(order) == np.ndarray and conc.shape[1] == len(order):
+            integrand = dt
+            for i, o in enumerate(order):
+                integrand = integrand * ave_conc[:, i].reshape(-1, 1) ** o
+        else:
+            integrand = ((ave_conc.reshape(-1, 1)) ** order) * dt
+        return np.concatenate((np.array([0]), np.cumsum(integrand, dtype=float)))
+
+
 class VTNA():
 
     def __init__(self, time, tonorm, normwith, handle_neg=replace_neg):
@@ -73,28 +109,6 @@ class VTNA():
             line = self.order_fit(self.orders)[1]
             self.k = line.coef_[0][0]
         return self.k
-
-
-def normalize_time(time, conc, order):
-    dt = (time[1:] - time[:-1]).reshape(-1, 1)
-
-    # check if concentrations are single values, indicating catalyst or excess reagent
-    if isinstance(conc, float):
-        conc = conc * np.ones((len(time), 1))
-    elif len(conc) == 1:
-        conc = np.array(conc)
-        conc = conc * np.ones((len(time), conc.shape[1]))
-
-    ave_conc = (conc[1:] + conc[:-1]) / 2
-    # check if conc, order are iterables
-    # if so, the integrand should have the product of the conc^order for each reagent
-    if type(order) == np.ndarray and conc.shape[1] == len(order):
-        integrand = dt
-        for i, o in enumerate(order):
-            integrand = integrand * ave_conc[:, i].reshape(-1,1)**o
-    else:
-        integrand = ((ave_conc.reshape(-1, 1))**order)*dt
-    return np.concatenate((np.array([0]), np.cumsum(integrand, dtype=float)))
 
 
 def order_search(t1, t2, prod1, prod2, reac1, reac2, o_range=(0, 3), nsteps=0.01, metric='RMSD', smooth_traces=False,
