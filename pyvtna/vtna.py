@@ -16,7 +16,6 @@ class VTNA:
     def load(self, data_loc):
         self.data.load(data_loc)
 
-    def
 
     @staticmethod
     def normalize_time(time, conc, order):
@@ -41,7 +40,7 @@ class VTNA:
         return np.concatenate((np.array([0]), np.cumsum(integrand, dtype=float)))
 
 
-class VTNA():
+class VTNA_Dup():
 
     def __init__(self, time, tonorm, normwith, handle_neg=replace_neg):
         # define a callback that can optionally be used to save the parameter value at each function call

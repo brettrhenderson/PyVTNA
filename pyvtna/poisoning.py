@@ -2,7 +2,7 @@ from scipy.optimize import Bounds, minimize
 from scipy.interpolate import interp1d
 from pyvtna.align import *
 import pyvtna.metrics as metrics
-from pyvtna.vtna import normalize_time
+from pyvtna.vtna import VTNA
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 def poison_search(t1, t2, prod1, prod2, reac1, reac2, order, poison_range=None, nsteps=100, metric='RMSD',
@@ -128,8 +128,8 @@ def poison_search(t1, t2, prod1, prod2, reac1, reac2, order, poison_range=None, 
     overlaps = np.zeros(poisonings.shape)
     for i, pois in enumerate(poisonings):
         # a. normalize the time axis of both signals
-        t1_norm = normalize_time(t1, reac1 - pois, order)
-        t2_norm = normalize_time(t2, reac2 - pois, order)
+        t1_norm = VTNA.normalize_time(t1, reac1 - pois, order)
+        t2_norm = VTNA.normalize_time(t2, reac2 - pois, order)
 
         # d. find the domain of overlap between sig1 and transformed sig2
         min_t = np.max([t1_norm[0], t2_norm[0]])
@@ -169,10 +169,10 @@ def poison_search(t1, t2, prod1, prod2, reac1, reac2, order, poison_range=None, 
     if best_overlap is None:
         best_overlap = overlaps.max()
         best_pois = poisonings[overlaps.argmax()]
-    t1_norm = normalize_time(t1, reac1, order)
-    t2_norm = normalize_time(t2, reac2, order)
-    best_t1 = normalize_time(t1, reac1 - best_pois, order)
-    best_t2 = normalize_time(t2, reac2 - best_pois, order)
+    t1_norm = VTNA.normalize_time(t1, reac1, order)
+    t2_norm = VTNA.normalize_time(t2, reac2, order)
+    best_t1 = VTNA.normalize_time(t1, reac1 - best_pois, order)
+    best_t2 = VTNA.normalize_time(t2, reac2 - best_pois, order)
 
     if plot:
         fig, (a1, a2, a3) = plt.subplots(1, 3, **kwargs)
@@ -309,8 +309,8 @@ def poison_opt(t1, t2, prod1, prod2, reac1, reac2, order=None, poison_range=None
     def deviation(p):
         p = p[0]
         # a. normalize the time axis of both signals
-        t1_norm = normalize_time(t1, reac1 - p, order)
-        t2_norm = normalize_time(t2, reac2 - p, order)
+        t1_norm = VTNA.normalize_time(t1, reac1 - p, order)
+        t2_norm = VTNA.normalize_time(t2, reac2 - p, order)
 
         # d. find the domain of overlap between sig1 and transformed sig2
         min_t = np.max([t1_norm[0], t2_norm[0]])
@@ -344,8 +344,8 @@ def poison_opt(t1, t2, prod1, prod2, reac1, reac2, order=None, poison_range=None
 
     if plot:
         fig, (a1, a2, a3) = plt.subplots(1, 3, **kwargs)
-        a1.scatter(normalize_time(t1, reac1, order), prod1_orig, label="Rxn 1")
-        a1.scatter(normalize_time(t2, reac2, order), prod2_orig, label='Rxn 2')
+        a1.scatter(VTNA.normalize_time(t1, reac1, order), prod1_orig, label="Rxn 1")
+        a1.scatter(VTNA.normalize_time(t2, reac2, order), prod2_orig, label='Rxn 2')
         a1.legend()
         a1.set_title('Original Product Traces for 2 Reactions')
         s2 = a2.scatter(ps, overlaps, c=range(len(ps)), linewidth=2, label="Iterations")
@@ -355,8 +355,8 @@ def poison_opt(t1, t2, prod1, prod2, reac1, reac2, order=None, poison_range=None
         # a2.scatter(result.x, [-result.fun], c="tab:red", s=100, label='Best Overlap')
         a2.legend()
         a2.set_title('Overlap Metric For Scanned Orders')
-        a3.scatter(normalize_time(t1, reac1 - result.x[0], order), prod1_orig, label='Rxn 1')
-        a3.scatter(normalize_time(t2, reac2 - result.x[0], order), prod2_orig, label='Rxn 2')
+        a3.scatter(VTNA.normalize_time(t1, reac1 - result.x[0], order), prod1_orig, label='Rxn 1')
+        a3.scatter(VTNA.normalize_time(t2, reac2 - result.x[0], order), prod2_orig, label='Rxn 2')
         a3.legend()
         a3.set_title('Best-Fit Time-Normalization for Product Traces')
         print(f"Best fit achieved for an order of {result.x[0]:0.2f}.")
