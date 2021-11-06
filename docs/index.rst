@@ -10,7 +10,11 @@ Welcome to PyVTNA's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   about_vtna
+   installation
    getting_started
+   tutorials
+   developer_docs
    api
 
 
