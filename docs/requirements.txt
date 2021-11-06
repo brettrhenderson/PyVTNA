@@ -2,4 +2,4 @@ scikit-learn
 matplotlib~=3.0.3
 numpy~=1.16.6
 pandas~=1.0.5
-sphinx<=3.0
+sphinx>=3.0
