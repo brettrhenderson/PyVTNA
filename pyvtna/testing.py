@@ -29,6 +29,7 @@ def simulate_reaction_trace(time, reac_st, reac_orders, reac_coefs, prod_st, pro
             spec += np.random.normal(0, noise, len(time))
     return reacs, prods
 
+
 def make_sigs(sig2dil, st1, e1, st2, e2, ascending=True, freq=0.01, noise=0.03, tau=2.0):
     """
     Create two test signals of the form 1 - exp((t-t0) / tau) or exp(-(t-t0) / tau).

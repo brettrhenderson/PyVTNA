@@ -8,7 +8,7 @@ import copy
 import pytest
 import pyvtna
 import numpy as np
-from pyvtna import align, metrics, notebook, poisoning, readers, signal, testing
+from pyvtna import align, metrics, notebook, readers, signal, testing
 
 class TestImports:
     def test_pyvtna_imported(self):

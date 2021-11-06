@@ -188,20 +188,24 @@ class VTNAReader:
 
     def select_data(self, reaction_names=None, species_names=None):
         """selects data to plot"""
-        if not all([isinstance(spec, int) for spec in species_names]):
-            if all([isinstance(spec, str) for spec in species_names]):
-                species_names = [self.species_names.index(spec) for spec in species_names].sort()
-            else:
-                raise ValueError("Species must be either a list of integer indexes or strings identifying species names")
+        spec_sort_idx = None
+        if species_names:
+            if not all([isinstance(spec, int) for spec in species_names]):
+                if all([isinstance(spec, str) for spec in species_names]):
+                    species_names = np.array([self.species_names.index(spec) for spec in species_names])
+                    spec_sort_idx = np.argsort(species_names)
+                    species_names = species_names[spec_sort_idx]
+                else:
+                    raise ValueError("Species must be a list of integer indexes or strings identifying species names")
         if reaction_names is None:   # return all reactions
             if species_names is None:     # return all species
-                return self.reaction_traces
+                return self.reaction_traces, spec_sort_idx
             return {rxn_name: rxn_trace[:, [0]+[spec + 1 for spec in species_names]]
-                    for rxn_name, rxn_trace in self.reaction_traces.items()}
+                    for rxn_name, rxn_trace in self.reaction_traces.items()}, spec_sort_idx
         elif species_names is None:
-            return {rxn_name: self.reaction_traces[rxn_name] for rxn_name in reaction_names}
+            return {rxn_name: self.reaction_traces[rxn_name] for rxn_name in reaction_names}, spec_sort_idx
         return {rxn_name: self.reaction_traces[rxn_name][:, [0]+[spec + 1 for spec in species_names]]
-                for rxn_name in reaction_names}
+                for rxn_name in reaction_names}, spec_sort_idx
 
 
 class ManualInput(VTNAReader):
