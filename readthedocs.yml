@@ -12,4 +12,4 @@ python:
       path: .
 
 conda:
-  environment: requirements.txt
+  environment: docs/requirements.txt
