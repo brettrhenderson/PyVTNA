@@ -1,7 +1,8 @@
 from sklearn.linear_model import LinearRegression
 from scipy.optimize import Bounds, minimize
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, interp2d
 from pyvtna.align import *
+import itertools
 import pyvtna.metrics as metrics
 import copy
 
@@ -27,6 +28,12 @@ class VTNA:
         self.data.reset_reaction_traces()
         self.k = 'k'
         self.orders = [0 for spec in self.data.species_names]
+        
+    def set_overlap_metric(self, overlap_metric):
+        if overlap_metric not in ['PearR', 'R2', 'RMSD', 'MAD']:
+            raise ValueError(f'Chosen metric {overlap_metric} is not available. Try one of {{PearR, R2, RMSD, NSAD}}')
+        metric_class = getattr(metrics, overlap_metric)
+        self.overlap_metric = metric_class(max_is_best=True)
 
     def add_catalysts(self, catalyst_concentrations, catalyst_name='catalyst'):
         for rxn_name, cat_conc in catalyst_concentrations.items():
@@ -538,6 +545,99 @@ class VTNA:
                                           result, ps, overlaps)
 
         return result, {'poisonings': ps, 'overlaps': overlaps}
+
+    def order_poison_opt(self, spec_to_norm, spec_to_norm_by, rxns=None, o_range=None, poison_range=None,
+                         method='Nelder-Mead'):
+        """
+        Returns the optimal order and poisoning for a reactant in a rate law using the VTNA procedure.
+
+        Given 3+ reaction traces, each consisting of a reactant trace and
+        a product trace, where the reactant concentration differed between
+        the traces, compute the order of the reactant in the reaction
+        rate law and the amount by which it was poisoned. This order,
+        when used to normalize the time for each reaction trace by the
+        reactant concentration, will cause the two reaction traces (product
+        or reactant traces) to overlay onto each other. This function maximizes
+        the overlap between the time normalized and poison-adjusted reaction traces.
+
+        Parameters
+        ----------
+        rxns : list of str
+            The names of the reactions to use for fitting. Must contain at least 3 reactions
+            with different starting concentrations of `spec_to_norm_by`.
+        spec_to_norm : str
+            The name of the species whose trace should be normalized.
+        spec_to_norm_by : str
+            The name of the species whose trace should be integrated in order to normalize
+            the time axis.
+        o_range : tuple, optional
+            The range of order values to search, as (min, max). Default None.
+            These bounds will be ignored unless `method` is one of the follwing:
+            "Nelder-Mead", "L-BFGS-B", "TNC", "SLSQP", "Powell", or "trust-constr-...".
+        poison_range : tuple, optional
+            The range of poisoning values to search, as (min, max). Default None.
+            These bounds will be ignored unless `method` is one of the follwing:
+            "Nelder-Mead", "L-BFGS-B", "TNC", "SLSQP", "Powell", or "trust-constr-...".
+        method : str, optional
+            The minimization algorithm to use. Can take any of the values allowed
+            by `scipy.optimize.minimize`. Default "Nelder-Mead".
+
+        Returns
+        -------
+        result : `scipy.OptimizeResult`
+            The minimization result, with the optimal order and poisoning contained in
+            result.x[0] and result.x[1], respectively
+        history : dict
+            A record of all the orders and poisonings tried, {'orders': os, 'poisonings': ps,
+            'overlaps': overlaps}
+        """
+        if rxns is None:
+            rxns = self.data.reaction_names
+        ts = [self.data.reaction_traces[rxn][:, 0] for rxn in rxns]
+        to_norms = [self.data.reaction_traces[rxn][:, self.data.species_names.index(spec_to_norm) + 1]
+                    for rxn in rxns]
+        to_norm_bys = [self.data.reaction_traces[rxn][:, self.data.species_names.index(spec_to_norm_by) + 1]
+                       for rxn in rxns]
+
+        os = []
+        ps = []
+        overlaps = []
+
+        # The ojective function to minimize
+        def deviation(x):
+            o = x[0]
+            p = x[1]
+            overlap = 0
+            for (idx_1, idx_2) in itertools.combinations(range(len(ts)), 2):
+                t1, t2 = ts[idx_1], ts[idx_2]
+                to_norm_by1, to_norm_by2 = to_norm_bys[idx_1], to_norm_bys[idx_2]
+                to_norm1, to_norm2 = to_norms[idx_1], to_norms[idx_2]
+                t1_norm = self.normalize_time(t1, to_norm_by1 - p, o)
+                t2_norm = self.normalize_time(t2, to_norm_by2 - p, o)
+                overlap += self.calculate_overlap(t1_norm, t2_norm, to_norm1, to_norm2, self.overlap_metric)
+            os.append(o)
+            ps.append(p)
+            overlaps.append(overlap)
+            return -overlap
+
+        # The minimization algorithm
+        start_o = np.array([0])
+        if o_range is not None:
+            start_o = np.mean(o_range)
+
+        # The minimization algorithm
+        if poison_range is None:
+            poison_range = (0, min([min(tnb) for tnb in to_norm_bys]) / 2)
+        start_p = np.mean(poison_range)
+        result = minimize(deviation, np.array([start_o, start_p]), method=method,
+                          bounds=[o_range, poison_range])
+
+        if self.visualizer:
+            t_norms = [self.normalize_time(t, tnb - result.x[1], result.x[0])
+                       for (t, tnb) in zip(ts, to_norm_bys)]
+            self.visualizer.visualize_2d_opt(ts, t_norms, to_norms, result, os, ps, overlaps)
+
+        return result, {'orders': os, 'poisonings': ps, 'overlaps': overlaps}
 
     def order_search_single_trace(self, rxn, spec_to_norm, spec_to_norm_by, o_range=(0, 3), nsteps=100,
                                   handle_neg=None, smooth_cost_function=False, win_cost=None, interp_cost_fun=False,

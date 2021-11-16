@@ -2,12 +2,23 @@ import numpy as np
 from pyvtna.signal import is_ascending
 
 
-class OverlapMetric():
+class OverlapMetric:
     def __init__(self, max_is_best=False):
         self.mib = max_is_best
     def __call__(self, model, data):
         return 1.0
 
+
+class CombinedMetric:
+    def __init__(self, base_metric, method='+'):
+        if method == '*':
+            self.combine = np.prod
+        else:
+            self.combine = np.sum
+        self.metric = base_metric
+
+    def __call__(self, models, data):
+        return self.combine([self.metric(m, d) for (m, d) in zip(models, data)])
 
 class R2(OverlapMetric):
     def __call__(self, model, data):
