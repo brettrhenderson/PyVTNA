@@ -236,13 +236,13 @@ class ExcelReader(VTNAReader):
             self.load(filename)
     
     def load(self, filename):
-        xl = ExcelFile(filename)
+        xl = ExcelFile(filename, engine='openpyxl')
         reaction_traces = {}
         species_names = None
         reaction_names = xl.sheet_names
         match = True
         for i, rxn_name in enumerate(reaction_names):
-            df = read_excel(filename, i)
+            df = read_excel(filename, i, engine='openpyxl')
             reaction_traces[rxn_name] = df.values
             if species_names is None:
                 species_names = df.columns.tolist()
