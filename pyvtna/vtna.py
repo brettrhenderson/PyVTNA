@@ -42,6 +42,7 @@ class VTNA:
             self.data.reaction_traces[rxn_name] = augmented_trace
         self.data.species_names.append(catalyst_name)
         self.orders.append(0)
+        self.poisonings.append(0)
 
     def update_reaction_name(self, old_name, new_name):
         self.data.reaction_traces[new_name] = self.data.reaction_traces.pop(old_name)
@@ -179,7 +180,8 @@ class VTNA:
         return np.concatenate((np.array([0]), np.cumsum(integrand, dtype=float)))
 
     def order_search(self, rxn_1, rxn_2, spec_to_norm, spec_to_norm_by, o_range=(0, 3), nsteps=100,
-                     smooth_cost_function=True, win_cost=None, interp_cost_fun=True, window_type='blackman'):
+                     smooth_cost_function=True, win_cost=None, interp_cost_fun=True, window_type='blackman', 
+                     show=True):
 
         """
         Returns the optimal order for a reactant in a rate law using the VTNA procedure.
@@ -276,7 +278,7 @@ class VTNA:
             if smooth_cost_function:
                 grid_coarse, scores_coarse = orders, original_overlaps
             self.visualizer.visualize_grid_search(t1, t2, t1_norm, t2_norm, to_norm1, to_norm2, orders_cf, overlaps,
-                                                  grid_coarse, scores_coarse)
+                                                  grid_coarse, scores_coarse, show=show)
 
         return best_order, overlaps, f
 
@@ -360,7 +362,8 @@ class VTNA:
         return result, {'orders': os, 'overlaps': overlaps}
 
     def poison_search(self, rxn_1, rxn_2, spec_to_norm, spec_to_norm_by, order, poison_range=None, nsteps=100,
-                      smooth_cost_function=True, win_cost=None, interp_cost_fun=True, window_type='blackman'):
+                      smooth_cost_function=True, win_cost=None, interp_cost_fun=True, window_type='blackman',
+                      show=True):
         """
         Returns the optimal poisoning for a reactant with a known order in the rate law using a VTNA procedure.
 
@@ -461,7 +464,7 @@ class VTNA:
             if smooth_cost_function:
                 grid_coarse, scores_coarse = poisonings, original_overlaps
             self.visualizer.visualize_grid_search(t1_norm, t2_norm, t1_norm_pois, t2_norm_pois, to_norm1, to_norm2,
-                                                  poisonings_cf, overlaps, grid_coarse, scores_coarse)
+                                                  poisonings_cf, overlaps, grid_coarse, scores_coarse, show=show)
 
         return best_pois, overlaps, f
 
@@ -641,7 +644,7 @@ class VTNA:
 
     def order_search_single_trace(self, rxn, spec_to_norm, spec_to_norm_by, o_range=(0, 3), nsteps=100,
                                   handle_neg=None, smooth_cost_function=False, win_cost=None, interp_cost_fun=False,
-                                  window_type='blackman'):
+                                  window_type='blackman', show=True):
         """
         Returns the optimal order for a reactant in a rate law using the VTNA procedure.
 
@@ -743,7 +746,7 @@ class VTNA:
             if smooth_cost_function:
                 grid_coarse, scores_coarse = orders, original_scores
             self.visualizer.visualize_grid_search_single_trace(t, t_norm, to_norm, orders_cf, scores, line,
-                                                               grid_coarse, scores_coarse)
+                                                               grid_coarse, scores_coarse, show=show)
 
         return best_order, scores, f, k
 

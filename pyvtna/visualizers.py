@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits import mplot3d
+import io
+import base64
 
 
 class Visualizer:
@@ -35,6 +37,7 @@ class Visualizer:
         ax.set_xlabel('Time')
         ax.set_ylabel('Concentration')
         ax.legend()
+        return fig, ax
 
 
 class StaticPlotter(Visualizer):
@@ -43,10 +46,46 @@ class StaticPlotter(Visualizer):
         self.fig_kw = fig_kw
 
     def reset_fig(self):
+        if self.fig is not None:
+            plt.close(self.fig)
         self.fig = None
 
+    def prep_fig_for_web(self, f_format='svg', return_image=False, save_disk=False, save_to='vtna.svg', 
+                         return_fig=False, transparent=False):
+        if return_fig:
+            return self.fig, self.fig.get_axes()
+
+        # correct mimetype based on filetype (for displaying in browser)
+        if f_format == 'svg':
+            mimetype = 'image/svg+xml'
+        elif f_format == 'png':
+            mimetype = 'image/png'
+        elif f_format == 'jpg':
+            mimetype = 'image/jpg'
+        elif f_format == 'pdf':
+            mimetype = 'application/pdf'
+        elif f_format == 'eps':
+            mimetype = 'application/postscript'
+        else:
+            raise ValueError('Image format {} not supported.'.format(format))
+
+        # save to disk if desired
+        if save_disk:
+            self.fig.savefig(save_to, transparent=transparent)
+
+        # save the figure to the temporary file-like object
+        img = io.BytesIO()  # file-like object to hold image
+        self.fig.savefig(img, format=f_format, transparent=transparent)
+        plt.close(self.fig)
+        img.seek(0)
+        if not return_image:
+            graph_url = base64.b64encode(img.getvalue()).decode()
+            return 'data:{};base64,{}'.format(mimetype, graph_url)
+        else:
+            return img, mimetype
+
     def visualize_grid_search(self, t1, t2, t1_norm, t2_norm, trace1, trace2, grid, scores,
-                              grid_coarse=None, scores_coarse=None):
+                              grid_coarse=None, scores_coarse=None, show=True):
         if self.fig:
             a1, a2, a3 = self.fig.subplots(1, 3)
         else:
@@ -58,20 +97,21 @@ class StaticPlotter(Visualizer):
         a1.scatter(t1, trace1, label="Rxn 1")
         a1.scatter(t2, trace2, label='Rxn 2')
         a1.legend()
-        a1.set_title('Original Product Traces for 2 Reactions')
-        a2.plot(grid, scores, c='tab:blue', linewidth=2, label="Cost Function")
+        a1.set_title('Original Traces')
+        a2.plot(grid, scores, c='tab:blue', linewidth=2, label="Cost (smooth)")
         if grid_coarse is not None:
-            a2.plot(grid_coarse, scores_coarse, c='tab:orange', linewidth=2, label="Un-Smoothed Cost Function")
+            a2.plot(grid_coarse, scores_coarse, c='tab:orange', linewidth=2, label="Cost (raw)")
         a2.scatter([best_grid_point], best_score, c="tab:red", s=100, label='Best Overlap')
         a2.legend()
-        a2.set_title('Overlap Metric For Scanned Grid')
+        a2.set_title('Overlap Metric')
         a3.scatter(t1_norm, trace1, label='Rxn 1')
         a3.scatter(t2_norm, trace2, label='Rxn 2')
         a3.legend()
-        a3.set_title('Best-Fit for Reaction Traces')
-        print(f"Best fit achieved for parameter value of {best_grid_point:0.2f}.")
+        a3.set_title(f'Best-Fit (Order={best_grid_point:0.2f})')
         plt.tight_layout()
-        plt.show()
+        if show:
+            print(f"Best fit achieved for parameter value of {best_grid_point:0.2f}.")
+            plt.show()
 
     def visualize_opt(self, t1, t2, t1_norm, t2_norm, trace1, trace2, result, trials, scores):
         if self.fig:
